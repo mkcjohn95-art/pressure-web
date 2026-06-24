@@ -22,16 +22,23 @@ def load_data():
     df.set_index("节点名称", inplace=True)
     return df
 
-# 3. 初始化界面
-st.set_page_config(page_title="压力监测工作台", layout="wide")
-st.title("📈 监测节点全景数据工作台")
-
-# 读取并显示数据
+# 3. 初始化界面逻辑（修改这里）
 if 'df' not in st.session_state:
     try:
         st.session_state.df = load_data()
     except Exception as e:
-        st.error(f"无法读取数据，请检查表格名称是否为 PressureData: {e}")
+        st.warning("正在初始化默认表格...")
+        st.session_state.df = pd.DataFrame(
+            data={"2026-06-24": [0.0, 0.0, 0.0]},
+            index=["1号", "3号", "6号"]
+        )
+        st.error(f"连接 Google Sheets 失败，已使用本地默认数据。请检查 Secrets 配置。错误信息: {e}")
+
+# 在使用之前再次检查是否存在
+if 'df' in st.session_state:
+    st.subheader("📝 监测数据表")
+    edited_df = st.data_editor(st.session_state.df, use_container_width=True)
+    st.session_state.df = edited_df
 
 # 4. 侧边栏管理
 with st.sidebar:
