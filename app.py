@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 from datetime import timedelta
 
 # --- 1. 配置区域 ---
+# 替换为你的真实表格ID
 SPREADSHEET_ID = "1W7VWIIWspuqTSCOGvKqJVP0lQjUS33zDi-KDJFe0Vkk"
 
 def get_gspread_client():
@@ -22,7 +23,7 @@ def load_data():
     sheet = client.open_by_key(SPREADSHEET_ID).sheet1
     data = sheet.get_all_records()
     df = pd.DataFrame(data)
-    # 强制将第一列设为索引，防止“节点名称”找不到报错
+    # 将第一列识别为索引（节点名称）
     df.set_index(df.columns[0], inplace=True)
     df.index.name = "节点名称"
     df.columns = [str(col) for col in df.columns]
@@ -37,7 +38,7 @@ if 'df' not in st.session_state:
         st.session_state.df = load_data()
         st.session_state.last_date = pd.to_datetime(st.session_state.df.columns[-1], errors='coerce').date()
     except Exception as e:
-        st.error(f"连接 Google Sheets 失败，请检查表格 ID 和权限: {e}")
+        st.error(f"连接 Google Sheets 失败: {e}")
         st.session_state.df = pd.DataFrame({"2026-06-24": [0.0]}, index=["节点1"])
         st.session_state.last_date = pd.to_datetime("2026-06-24").date()
 
@@ -52,7 +53,7 @@ with st.sidebar:
             st.error("刷新失败")
         
     st.divider()
-    new_date = st.date_input("选择日期", value=st.session_state.last_date)
+    new_date = st.date_input("日期选择", value=st.session_state.last_date)
     if st.button("➕ 新增日期列"):
         st.session_state.df[str(new_date)] = 0.0
         st.rerun()
@@ -64,7 +65,7 @@ with st.sidebar:
             df_to_save = st.session_state.df.reset_index()
             sheet.clear()
             sheet.update([df_to_save.columns.values.tolist()] + df_to_save.values.tolist())
-            st.success("数据已同步至 Google Sheets！")
+            st.success("数据已同步至云端！")
         except Exception as e:
             st.error(f"保存失败: {e}")
 
@@ -73,37 +74,41 @@ st.subheader("📝 监测数据表")
 edited_df = st.data_editor(st.session_state.df, use_container_width=True, key="main_editor")
 st.session_state.df = edited_df
 
-# --- 5. 多选高亮曲线图 ---
+# --- 5. 实时曲线图 ---
 st.subheader("📊 实时曲线图")
 
-# 获取所有节点名称
 all_nodes = edited_df.index.tolist()
-# 提供多选框，默认选中前三个
-selected_nodes = st.multiselect("选择要高亮的监测节点:", options=all_nodes, default=all_nodes[:3])
+selected_nodes = st.multiselect("选择要高亮的监测节点 (可多选):", options=all_nodes, default=all_nodes[:3])
 
 if selected_nodes:
     try:
         plot_df = edited_df.loc[selected_nodes].T
-        # 处理日期索引转换
         plot_df.index = pd.to_datetime(plot_df.index, errors='coerce')
         plot_df = plot_df.sort_index()
 
         fig = go.Figure()
-        for node in selected_nodes:
+        # 定义独特的标记形状循环
+        symbols = ['circle', 'square', 'diamond', 'cross', 'x', 'triangle-up', 'star', 'hexagon']
+
+        for i, node in enumerate(selected_nodes):
             fig.add_trace(go.Scatter(
                 x=plot_df.index, y=plot_df[node], 
                 mode='lines+markers', name=str(node),
-                marker=dict(size=9)
+                marker=dict(symbol=symbols[i % len(symbols)], size=10),
+                # 悬停显示自定义信息
+                hovertemplate="<b>日期</b>: %{x|%Y-%m-%d}<br>" +
+                              "<b>节点</b>: %{fullData.name}<br>" +
+                              "<b>压力值</b>: %{y:.2f} kPa<extra></extra>"
             ))
 
         fig.update_layout(
             xaxis=dict(tickformat="%m-%d", type="date", gridcolor='lightgray'),
             yaxis=dict(title="压力值 (kPa)", gridcolor='lightgray'),
-            plot_bgcolor='white', height=400,
+            plot_bgcolor='white', height=500,
             hovermode="x unified"
         )
         st.plotly_chart(fig, use_container_width=True)
     except Exception as e:
-        st.info("数据格式调整中，图表稍后显示...")
+        st.info("图表渲染中...")
 else:
     st.info("请在上方选择框中勾选节点以显示曲线。")
