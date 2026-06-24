@@ -6,7 +6,6 @@ import plotly.graph_objects as go
 from datetime import timedelta
 
 # --- 1. 配置区域 ---
-# 替换为你的真实表格ID
 SPREADSHEET_ID = "1W7VWIIWspuqTSCOGvKqJVP0lQjUS33zDi-KDJFe0Vkk"
 
 def get_gspread_client():
@@ -23,7 +22,6 @@ def load_data():
     sheet = client.open_by_key(SPREADSHEET_ID).sheet1
     data = sheet.get_all_records()
     df = pd.DataFrame(data)
-    # 将第一列识别为索引（节点名称）
     df.set_index(df.columns[0], inplace=True)
     df.index.name = "节点名称"
     df.columns = [str(col) for col in df.columns]
@@ -87,7 +85,6 @@ if selected_nodes:
         plot_df = plot_df.sort_index()
 
         fig = go.Figure()
-        # 定义独特的标记形状循环
         symbols = ['circle', 'square', 'diamond', 'cross', 'x', 'triangle-up', 'star', 'hexagon']
 
         for i, node in enumerate(selected_nodes):
@@ -95,7 +92,7 @@ if selected_nodes:
                 x=plot_df.index, y=plot_df[node], 
                 mode='lines+markers', name=str(node),
                 marker=dict(symbol=symbols[i % len(symbols)], size=10),
-                # 悬停显示自定义信息
+                # 自定义悬停信息：只显示当前点
                 hovertemplate="<b>日期</b>: %{x|%Y-%m-%d}<br>" +
                               "<b>节点</b>: %{fullData.name}<br>" +
                               "<b>压力值</b>: %{y:.2f} kPa<extra></extra>"
@@ -105,7 +102,8 @@ if selected_nodes:
             xaxis=dict(tickformat="%m-%d", type="date", gridcolor='lightgray'),
             yaxis=dict(title="压力值 (kPa)", gridcolor='lightgray'),
             plot_bgcolor='white', height=500,
-            hovermode="x unified"
+            # 【关键修改】改为 closest 模式，悬停时只显示当前点的详细信息
+            hovermode="closest"
         )
         st.plotly_chart(fig, use_container_width=True)
     except Exception as e:
