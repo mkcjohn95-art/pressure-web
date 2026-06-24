@@ -5,42 +5,38 @@ from google.oauth2.service_account import Credentials
 import plotly.graph_objects as go
 from datetime import timedelta
 
-# 1. 连接 Google Sheets 的配置
+# --- 1. Google Sheets 连接配置 ---
 def get_gspread_client():
-    # 使用你在 Secrets 里填写的配置
     creds_dict = st.secrets["gspread"]
-    creds = Credentials.from_service_account_info(creds_dict)
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     return gspread.authorize(creds)
 
-# 2. 读取数据
 def load_data():
     client = get_gspread_client()
     sheet = client.open("PressureData").sheet1
     data = sheet.get_all_records()
     df = pd.DataFrame(data)
-    # 将“节点名称”设为索引
     df.set_index("节点名称", inplace=True)
     return df
 
-# 3. 初始化界面逻辑（修改这里）
+# --- 2. 页面初始化 ---
+st.set_page_config(page_title="压力监测工作台", layout="wide")
+st.title("📈 监测节点全景数据工作台")
+
 if 'df' not in st.session_state:
     try:
         st.session_state.df = load_data()
+        st.session_state.last_date = pd.to_datetime(st.session_state.df.columns[-1]).date()
     except Exception as e:
-        st.warning("正在初始化默认表格...")
-        st.session_state.df = pd.DataFrame(
-            data={"2026-06-24": [0.0, 0.0, 0.0]},
-            index=["1号", "3号", "6号"]
-        )
-        st.error(f"连接 Google Sheets 失败，已使用本地默认数据。请检查 Secrets 配置。错误信息: {e}")
+        st.error(f"连接失败，请检查配置: {e}")
+        st.session_state.df = pd.DataFrame({"2026-06-24": [0.0]}, index=["节点1"])
+        st.session_state.last_date = pd.to_datetime("2026-06-24").date()
 
-# 在使用之前再次检查是否存在
-if 'df' in st.session_state:
-    st.subheader("📝 监测数据表")
-    edited_df = st.data_editor(st.session_state.df, use_container_width=True)
-    st.session_state.df = edited_df
-
-# 4. 侧边栏管理
+# --- 3. 侧边栏 ---
 with st.sidebar:
     st.header("🔧 云端数据管理")
     if st.button("🔄 刷新最新数据"):
@@ -48,19 +44,43 @@ with st.sidebar:
         st.rerun()
         
     st.divider()
+    new_date = st.date_input("选择日期", value=st.session_state.last_date)
+    if st.button("➕ 新增日期列"):
+        st.session_state.df[str(new_date)] = 0.0
+        st.session_state.last_date = new_date + timedelta(days=1)
+        st.rerun()
+
     if st.button("💾 保存当前修改到云端"):
         client = get_gspread_client()
         sheet = client.open("PressureData").sheet1
-        # 将 DataFrame 转为列表格式写入
         df_to_save = st.session_state.df.reset_index()
         sheet.clear()
         sheet.update([df_to_save.columns.values.tolist()] + df_to_save.values.tolist())
         st.success("数据已同步至 Google Sheets！")
 
-# 5. 主编辑区
+# --- 4. 主编辑区 ---
 st.subheader("📝 监测数据表")
-edited_df = st.data_editor(st.session_state.df, use_container_width=True)
+edited_df = st.data_editor(st.session_state.df, use_container_width=True, key="main_editor")
 st.session_state.df = edited_df
 
-# 6. 图表逻辑 (保持原样)
-# ... (这里放入你之前那段 plotly 画图的代码即可)
+# --- 5. 实时曲线图 ---
+st.subheader("📊 实时曲线图")
+plot_df = edited_df.T
+plot_df.index = pd.to_datetime(plot_df.index)
+plot_df = plot_df.sort_index()
+
+fig = go.Figure()
+symbols = ['circle', 'square', 'diamond', 'cross', 'x', 'triangle-up']
+
+for i, col in enumerate(plot_df.columns):
+    fig.add_trace(go.Scatter(
+        x=plot_df.index, y=plot_df[col], mode='lines+markers', name=str(col),
+        marker=dict(symbol=symbols[i % len(symbols)], size=9)
+    ))
+
+fig.update_layout(
+    xaxis=dict(tickformat="%m-%d", type="date", gridcolor='lightgray'),
+    yaxis=dict(title="压力值 (kPa)", gridcolor='lightgray'),
+    plot_bgcolor='white', height=400
+)
+st.plotly_chart(fig, use_container_width=True)
