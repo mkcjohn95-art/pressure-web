@@ -41,28 +41,20 @@ if 'df' not in st.session_state:
 with st.sidebar:
     st.header("🔧 云端数据管理")
     if st.button("🔄 刷新最新数据"):
-        try:
-            st.session_state.df = load_data()
-            st.rerun()
-        except Exception as e:
-            st.error("刷新失败")
+        st.session_state.df = load_data(); st.rerun()
     st.divider()
     new_date = st.date_input("日期选择", value=st.session_state.last_date)
     if st.button("➕ 新增日期列"):
-        st.session_state.df[str(new_date)] = 0.0
-        st.rerun()
+        st.session_state.df[str(new_date)] = 0.0; st.rerun()
     if st.button("💾 保存当前修改到云端"):
-        try:
-            client = get_gspread_client()
-            sheet = client.open_by_key(SPREADSHEET_ID).sheet1
-            df_to_save = st.session_state.df.reset_index()
-            sheet.clear()
-            sheet.update([df_to_save.columns.values.tolist()] + df_to_save.values.tolist())
-            st.success("数据已同步至云端！")
-        except Exception as e:
-            st.error(f"保存失败: {e}")
+        client = get_gspread_client()
+        sheet = client.open_by_key(SPREADSHEET_ID).sheet1
+        df_to_save = st.session_state.df.reset_index()
+        sheet.clear()
+        sheet.update([df_to_save.columns.values.tolist()] + df_to_save.values.tolist())
+        st.success("同步成功")
 
-# --- 4. 主编辑区 (确保表格在此处) ---
+# --- 4. 主编辑区 ---
 st.subheader("📝 监测数据表")
 edited_df = st.data_editor(st.session_state.df, use_container_width=True, key="main_editor")
 st.session_state.df = edited_df
@@ -70,18 +62,12 @@ st.session_state.df = edited_df
 # --- 5. 实时曲线图 ---
 st.subheader("📊 实时曲线图")
 
-# 关键事件清单
 event_list = [
-    ("25.11.23: 3#一开钻进", "2025-11-23"),
-    ("25.11.26: 移至4#", "2025-11-26"),
-    ("25.12.19: 4#移至5#", "2025-12-19"),
-    ("26.01.09: 5#移至3#", "2026-01-09"),
-    ("26.01.23: 3#移至7#", "2026-01-23"),
-    ("26.01.23: 7#移至6#", "2026-01-23"),
-    ("26.02.13: 7#遇起钻最高摩阻38t", "2026-02-13"),
-    ("26.03.02: 6#二开钻进", "2026-03-02"),
-    ("26.03.12: 6#二开钻进", "2026-03-12"),
-    ("26.04.13: 4#三开钻进", "2026-04-13"),
+    ("25.11.23: 3#一开钻进", "2025-11-23"), ("25.11.26: 移至4#", "2025-11-26"),
+    ("25.12.19: 4#移至5#", "2025-12-19"), ("26.01.09: 5#移至3#", "2026-01-09"),
+    ("26.01.23: 3#移至7#", "2026-01-23"), ("26.01.23: 7#移至6#", "2026-01-23"),
+    ("26.02.13: 7#遇起钻最高摩阻38t", "2026-02-13"), ("26.03.02: 6#二开钻进", "2026-03-02"),
+    ("26.03.12: 6#二开钻进", "2026-03-12"), ("26.04.13: 4#三开钻进", "2026-04-13"),
     ("26.05.24: #三开钻进", "2026-05-24")
 ]
 
@@ -92,42 +78,36 @@ with col2:
     selected_nodes = st.multiselect("选择监测节点:", options=edited_df.index.tolist(), default=edited_df.index.tolist()[:3])
 
 if selected_nodes:
-    try:
-        plot_df = edited_df.loc[selected_nodes].T
-        plot_df.index = pd.to_datetime(plot_df.index, errors='coerce')
-        plot_df = plot_df.sort_index()
+    plot_df = edited_df.loc[selected_nodes].T
+    plot_df.index = pd.to_datetime(plot_df.index, errors='coerce')
+    plot_df = plot_df.sort_index()
 
-        fig = go.Figure()
-        symbols = ['circle', 'square', 'diamond', 'cross', 'x', 'triangle-up', 'star', 'hexagon']
+    fig = go.Figure()
+    symbols = ['circle', 'square', 'diamond', 'cross', 'x', 'triangle-up', 'star', 'hexagon']
 
-        for i, node in enumerate(selected_nodes):
-            fig.add_trace(go.Scatter(
-                x=plot_df.index, y=plot_df[node], 
-                mode='lines+markers', name=str(node),
-                marker=dict(symbol=symbols[i % len(symbols)], size=8)
-            ))
+    for i, node in enumerate(selected_nodes):
+        fig.add_trace(go.Scatter(
+            x=plot_df.index, y=plot_df[node], mode='lines+markers', name=str(node),
+            marker=dict(symbol=symbols[i % len(symbols)], size=8),
+            # 【精准控制】只显示当前指向点的详细信息
+            hovertemplate="<b>日期</b>: %{x|%Y-%m-%d}<br><b>节点</b>: %{fullData.name}<br><b>压力值</b>: %{y:.2f} kPa<extra></extra>"
+        ))
 
-        # 添加关键日期竖线
-        for _, date_str in event_list:
-            fig.add_vline(x=pd.to_datetime(date_str), line_dash="dash", line_color="gray", opacity=0.4)
+    # 添加竖线
+    for _, date_str in event_list:
+        fig.add_vline(x=pd.to_datetime(date_str), line_dash="dash", line_color="gray", opacity=0.4)
 
-        xaxis_config = dict(tickformat="%m-%d", type="date", gridcolor='lightgray')
-        
-        # 定位逻辑
-        if selected_event != "显示全部":
-            idx = next(i for i, v in enumerate(event_list) if v[0] == selected_event)
-            start_date = pd.to_datetime(event_list[idx][1])
-            end_date = pd.to_datetime(event_list[idx+1][1]) if idx < len(event_list) - 1 else start_date + timedelta(days=7)
-            xaxis_config["range"] = [start_date, end_date]
+    xaxis_config = dict(tickformat="%m-%d", type="date", gridcolor='lightgray')
+    if selected_event != "显示全部":
+        idx = next(i for i, v in enumerate(event_list) if v[0] == selected_event)
+        start_date = pd.to_datetime(event_list[idx][1])
+        end_date = pd.to_datetime(event_list[idx+1][1]) if idx < len(event_list) - 1 else start_date + timedelta(days=7)
+        xaxis_config["range"] = [start_date, end_date]
 
-        fig.update_layout(
-            xaxis=xaxis_config,
-            yaxis=dict(title="压力值 (kPa)", gridcolor='lightgray'),
-            plot_bgcolor='white', height=500,
-            hovermode="x unified" # 关键：统一显示悬停信息
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    except Exception as e:
-        st.info("数据渲染中...")
-else:
-    st.info("请在上方选择框中勾选节点以显示曲线。")
+    fig.update_layout(
+        xaxis=xaxis_config, yaxis=dict(title="压力值 (kPa)"), 
+        plot_bgcolor='white', height=500, 
+        # 【关键修改】使用 closest 模式实现单点悬停
+        hovermode="closest"
+    )
+    st.plotly_chart(fig, use_container_width=True)
