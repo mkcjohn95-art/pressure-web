@@ -117,17 +117,12 @@ if selected_nodes:
                     showlegend=False
                 ))
 
-        # 3. 布局与定位逻辑
+        # 3. 布局逻辑：只在特定施工阶段时进行强制范围聚焦
         xaxis_config = dict(tickformat="%m-%d", type="date", gridcolor='lightgray')
         
-        if selected_event == "显示全部":
-            # 自动聚焦到最近 30 天，保证放大效果
-            last_date = plot_df.index.max()
-            start_date = last_date - timedelta(days=30)
-            xaxis_config["range"] = [start_date, last_date]
-            
-        elif selected_event != "取消所有竖线":
-            # 精准定位到施工阶段
+        # 核心改动：只有当选中具体某个施工阶段时，才限制 X 轴范围；
+        # “显示全部”和“取消所有竖线”均交由 Plotly 自动调整，保持你图上的原始比例。
+        if selected_event not in ["显示全部", "取消所有竖线"]:
             idx = next(i for i, v in enumerate(event_list) if v[0] == selected_event)
             start_date = pd.to_datetime(event_list[idx][1])
             end_date = pd.to_datetime(event_list[idx+1][1]) if idx < len(event_list) - 1 else start_date + timedelta(days=7)
