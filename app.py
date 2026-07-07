@@ -96,7 +96,7 @@ if selected_nodes:
         fig = go.Figure()
         symbols = ['circle', 'square', 'diamond', 'cross', 'x', 'triangle-up', 'star', 'hexagon']
 
-        # 1. 绘制曲线
+        # 1. 绘制曲线 (保留精准悬停逻辑)
         for i, node in enumerate(selected_nodes):
             fig.add_trace(go.Scatter(
                 x=plot_df.index, y=plot_df[node], mode='lines+markers', name=str(node),
@@ -104,24 +104,22 @@ if selected_nodes:
                 hovertemplate="<b>日期</b>: %{x|%Y-%m-%d}<br><b>节点</b>: %{fullData.name}<br><b>压力值</b>: %{y:.2f} kPa<extra></extra>"
             ))
 
-        # 2. 绘制竖线及悬停日期
+        # 2. 绘制竖线及底部固定日期标注
         if selected_event != "取消所有竖线":
             for label, date_str in event_list:
                 date_obj = pd.to_datetime(date_str)
                 fig.add_vline(x=date_obj, line_dash="dash", line_color="gray", opacity=0.4)
-                fig.add_trace(go.Scatter(
-                    x=[date_obj], y=[0], mode='markers',
-                    marker=dict(size=1, opacity=0),
-                    hoverinfo='text',
-                    text=f"<b>关键事件日期</b>: {date_str}<br>{label}",
-                    showlegend=False
-                ))
+                fig.add_annotation(
+                    x=date_obj, y=0, yref="paper",
+                    text=date_str, showarrow=False,
+                    font=dict(size=10, color="gray"),
+                    textangle=-90, yshift=15 
+                )
 
-        # 3. 布局逻辑：只在特定施工阶段时进行强制范围聚焦
+        # 3. 布局与定位逻辑
         xaxis_config = dict(tickformat="%m-%d", type="date", gridcolor='lightgray')
         
-        # 核心改动：只有当选中具体某个施工阶段时，才限制 X 轴范围；
-        # “显示全部”和“取消所有竖线”均交由 Plotly 自动调整，保持你图上的原始比例。
+        # 只在选中具体施工阶段时强制聚焦，其余情况（显示全部/取消竖线）保持原始比例
         if selected_event not in ["显示全部", "取消所有竖线"]:
             idx = next(i for i, v in enumerate(event_list) if v[0] == selected_event)
             start_date = pd.to_datetime(event_list[idx][1])
