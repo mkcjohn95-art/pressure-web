@@ -71,15 +71,15 @@ st.session_state.df = edited_df
 st.subheader("📊 实时曲线图")
 
 event_list = [
-    ("25.11.23: 3#一开钻进", "2025-11-23"), ("25.11.26: 移至4#", "2025-11-26"),
-    ("25.12.19: 4#移至5#", "2025-12-19"), ("26.01.09: 5#移至3#", "2026-01-09"),
-    ("26.01.23: 3#移至7#", "2026-01-23"), ("26.01.23: 7#移至6#", "2026-01-23"),
-    ("26.02.13: 7#遇起钻最高摩阻38t", "2026-02-13"), ("26.03.02: 6#二开钻进", "2026-03-02"),
-    ("26.03.12: 6#二开钻进", "2026-03-12"), ("26.04.13: 4#三开钻进", "2026-04-13"),
-    ("26.05.24: #三开钻进", "2026-05-24")
+    ("3#一开钻进", "2025-11-23"), ("移至4#", "2025-11-26"),
+    ("4#移至5#", "2025-12-19"), ("5#移至3#", "2026-01-09"),
+    ("3#移至7#", "2026-01-23"), ("7#移至6#", "2026-01-23"),
+    ("7#遇起钻最高摩阻38t", "2026-02-13"), ("6#二开钻进", "2026-03-02"),
+    ("6#二开钻进", "2026-03-12"), ("4#三开钻进", "2026-04-13"),
+    ("#三开钻进", "2026-05-24")
 ]
 
-options = ["显示全部", "取消所有竖线"] + [e[0] for e in event_list]
+options = ["显示全部", "取消所有竖线"] + [f"{e[1]}: {e[0]}" for e in event_list]
 
 col1, col2 = st.columns([1, 2])
 with col1:
@@ -104,36 +104,42 @@ if selected_nodes:
                 hovertemplate="<b>日期</b>: %{x|%Y-%m-%d}<br><b>节点</b>: %{fullData.name}<br><b>压力值</b>: %{y:.2f} kPa<extra></extra>"
             ))
 
-        # 2. 绘制竖线，并交错显示日期标签
+        # 2. 绘制竖线，顶部显示日期，底部显示事件名称
         if selected_event != "取消所有竖线":
-            for idx, (label, date_str) in enumerate(event_list):
+            for idx, (event_name, date_str) in enumerate(event_list):
                 date_obj = pd.to_datetime(date_str)
-                # 奇数索引在左，偶数索引在右，防止重叠
-                pos = "top left" if idx % 2 == 0 else "top right"
-                shift = -10 if idx % 2 == 0 else 10
+                # 奇偶交错放置防止重叠
+                pos_top = "top left" if idx % 2 == 0 else "top right"
+                pos_bottom = "bottom left" if idx % 2 == 0 else "bottom right"
                 
                 fig.add_vline(
                     x=date_obj, line_dash="dash", line_color="gray", opacity=0.4,
-                    annotation_text=date_str,
-                    annotation_position=pos,
-                    annotation_textangle=0,
-                    annotation_font=dict(size=12, color="black", weight="bold"),
-                    annotation_yshift=shift
+                    # 顶部日期
+                    annotation=dict(
+                        text=date_str, textangle=0, font=dict(size=12, color="black", weight="bold"),
+                        position=pos_top, yshift=10
+                    ),
+                    # 底部事件
+                    annotation_bottom=dict(
+                        text=event_name, textangle=0, font=dict(size=12, color="gray"),
+                        position=pos_bottom, yshift=-10
+                    )
                 )
 
         # 3. 布局与定位逻辑
         xaxis_config = dict(tickformat="%m-%d", type="date", gridcolor='lightgray')
         
         if selected_event not in ["显示全部", "取消所有竖线"]:
-            idx = next(i for i, v in enumerate(event_list) if v[0] == selected_event)
-            start_date = pd.to_datetime(event_list[idx][1])
-            end_date = pd.to_datetime(event_list[idx+1][1]) if idx < len(event_list) - 1 else start_date + timedelta(days=7)
-            xaxis_config["range"] = [start_date, end_date]
+            # 解析选择的阶段进行范围缩放
+            selected_date = selected_event.split(":")[0]
+            start_date = pd.to_datetime(selected_date)
+            end_date = start_date + timedelta(days=14) # 显示前后两周范围
+            xaxis_config["range"] = [start_date - timedelta(days=2), end_date]
 
         fig.update_layout(
             xaxis=xaxis_config, yaxis=dict(title="压力值 (kPa)"), 
-            plot_bgcolor='white', height=500, hovermode="closest",
-            margin=dict(t=80, b=50) # 增大顶部留白，放置上方的日期标注
+            plot_bgcolor='white', height=600, hovermode="closest",
+            margin=dict(t=80, b=80) 
         )
         st.plotly_chart(fig, use_container_width=True)
     except Exception as e:
