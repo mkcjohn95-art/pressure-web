@@ -78,17 +78,21 @@ if selected_nodes:
             date_val = pd.to_datetime(date_str)
             fig.add_vline(x=date_val, line_dash="dash", line_color="gray", opacity=0.4)
             
-            # 顶部日期
+            # 使用奇偶判断，错开文字高度，彻底防止相邻文字重叠
+            shift_top = 10 if i % 2 == 0 else 30
+            shift_bottom = -10 if i % 2 == 0 else -30
+            
+            # 顶部日期 (加大、加黑)
             fig.add_annotation(
                 x=date_val, y=1, yref="paper", text=date_str, 
-                showarrow=False, font=dict(size=12, color="black"), 
-                yshift=10, xanchor="center"
+                showarrow=False, font=dict(size=14, color="black", weight="bold"), 
+                yshift=shift_top, xanchor="center", yanchor="bottom"
             )
-            # 底部事件
+            # 底部事件 (加大、加黑)
             fig.add_annotation(
                 x=date_val, y=0, yref="paper", text=event_name, 
-                showarrow=False, font=dict(size=12, color="gray"), 
-                yshift=-15, xanchor="center"
+                showarrow=False, font=dict(size=14, color="black", weight="bold"), 
+                yshift=shift_bottom, xanchor="center", yanchor="top"
             )
 
     # 范围缩放逻辑
@@ -98,8 +102,14 @@ if selected_nodes:
         xaxis_range = [target_date - timedelta(days=3), target_date + timedelta(days=10)]
 
     fig.update_layout(
-        xaxis=dict(range=xaxis_range, gridcolor='lightgray'),
+        xaxis=dict(
+            range=xaxis_range, 
+            gridcolor='lightgray',
+            tickformat="%Y-%m-%d" # 强制 X 轴日期格式为你表格的格式，去除英文显示
+        ),
         yaxis=dict(title="压力值 (kPa)"),
-        plot_bgcolor='white', height=600, margin=dict(t=80, b=80)
+        plot_bgcolor='white', 
+        height=600, 
+        margin=dict(t=100, b=100) # 增大上下边距，给加大的文字留出足够空间
     )
     st.plotly_chart(fig, use_container_width=True)
