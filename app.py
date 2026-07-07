@@ -75,8 +75,27 @@ st.session_state.df = edited_df
 # --- 5. 实时曲线图 ---
 st.subheader("📊 实时曲线图")
 
-all_nodes = edited_df.index.tolist()
-selected_nodes = st.multiselect("选择要高亮的监测节点 (可多选):", options=all_nodes, default=all_nodes[:3])
+# 关键事件清单
+events = {
+    "2025-11-23: 3#一开钻进": "2025-11-23",
+    "2025-11-26: 移至4#": "2025-11-26",
+    "2025-12-19: 4#移至5#": "2025-12-19",
+    "2026-01-09: 5#移至3#": "2026-01-09",
+    "2026-01-23: 3#移至7#": "2026-01-23",
+    "2026-01-23: 7#移至6#": "2026-01-23",
+    "2026-02-13: 7#遇起钻最高摩阻38t": "2026-02-13",
+    "2026-03-02: 6#二开钻进": "2026-03-02",
+    "2026-03-12: 6#二开钻进": "2026-03-12",
+    "2026-04-13: 4#三开钻进": "2026-04-13",
+    "2026-05-24: #三开钻进": "2026-05-24"
+}
+
+# 增加选择器
+col1, col2 = st.columns([1, 2])
+with col1:
+    selected_event = st.selectbox("快速定位关键节点:", options=["显示全部"] + list(events.keys()))
+with col2:
+    selected_nodes = st.multiselect("选择监测节点 (可多选):", options=edited_df.index.tolist(), default=edited_df.index.tolist()[:3])
 
 if selected_nodes:
     try:
@@ -92,17 +111,21 @@ if selected_nodes:
                 x=plot_df.index, y=plot_df[node], 
                 mode='lines+markers', name=str(node),
                 marker=dict(symbol=symbols[i % len(symbols)], size=10),
-                # 自定义悬停信息：只显示当前点
                 hovertemplate="<b>日期</b>: %{x|%Y-%m-%d}<br>" +
                               "<b>节点</b>: %{fullData.name}<br>" +
                               "<b>压力值</b>: %{y:.2f} kPa<extra></extra>"
             ))
 
+        # 动态视角聚焦逻辑
+        xaxis_config = dict(tickformat="%m-%d", type="date", gridcolor='lightgray')
+        if selected_event != "显示全部":
+            target_date = pd.to_datetime(events[selected_event])
+            xaxis_config["range"] = [target_date - timedelta(days=7), target_date + timedelta(days=7)]
+
         fig.update_layout(
-            xaxis=dict(tickformat="%m-%d", type="date", gridcolor='lightgray'),
+            xaxis=xaxis_config,
             yaxis=dict(title="压力值 (kPa)", gridcolor='lightgray'),
             plot_bgcolor='white', height=500,
-            # 【关键修改】改为 closest 模式，悬停时只显示当前点的详细信息
             hovermode="closest"
         )
         st.plotly_chart(fig, use_container_width=True)
