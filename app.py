@@ -96,7 +96,7 @@ if selected_nodes:
         fig = go.Figure()
         symbols = ['circle', 'square', 'diamond', 'cross', 'x', 'triangle-up', 'star', 'hexagon']
 
-        # 1. 绘制曲线 (保留精准悬停逻辑)
+        # 1. 绘制曲线
         for i, node in enumerate(selected_nodes):
             fig.add_trace(go.Scatter(
                 x=plot_df.index, y=plot_df[node], mode='lines+markers', name=str(node),
@@ -104,22 +104,21 @@ if selected_nodes:
                 hovertemplate="<b>日期</b>: %{x|%Y-%m-%d}<br><b>节点</b>: %{fullData.name}<br><b>压力值</b>: %{y:.2f} kPa<extra></extra>"
             ))
 
-        # 2. 绘制竖线及底部固定日期标注
+        # 2. 绘制竖线，并使用内置 annotation 实现跟随缩放的横向日期标注
         if selected_event != "取消所有竖线":
             for label, date_str in event_list:
                 date_obj = pd.to_datetime(date_str)
-                fig.add_vline(x=date_obj, line_dash="dash", line_color="gray", opacity=0.4)
-                fig.add_annotation(
-                    x=date_obj, y=0, yref="paper",
-                    text=date_str, showarrow=False,
-                    font=dict(size=10, color="gray"),
-                    textangle=-90, yshift=15 
+                fig.add_vline(
+                    x=date_obj, line_dash="dash", line_color="gray", opacity=0.4,
+                    annotation_text=date_str,    # 文本内容
+                    annotation_position="top left", # 标注位置
+                    annotation_textangle=0,       # 0度即水平横向显示
+                    annotation_font=dict(size=10, color="gray")
                 )
 
         # 3. 布局与定位逻辑
         xaxis_config = dict(tickformat="%m-%d", type="date", gridcolor='lightgray')
         
-        # 只在选中具体施工阶段时强制聚焦，其余情况（显示全部/取消竖线）保持原始比例
         if selected_event not in ["显示全部", "取消所有竖线"]:
             idx = next(i for i, v in enumerate(event_list) if v[0] == selected_event)
             start_date = pd.to_datetime(event_list[idx][1])
@@ -128,7 +127,8 @@ if selected_nodes:
 
         fig.update_layout(
             xaxis=xaxis_config, yaxis=dict(title="压力值 (kPa)"), 
-            plot_bgcolor='white', height=500, hovermode="closest"
+            plot_bgcolor='white', height=500, hovermode="closest",
+            margin=dict(t=50, b=50) # 增加上下边距防止文字溢出
         )
         st.plotly_chart(fig, use_container_width=True)
     except Exception as e:
