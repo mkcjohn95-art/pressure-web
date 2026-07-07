@@ -104,16 +104,21 @@ if selected_nodes:
                 hovertemplate="<b>日期</b>: %{x|%Y-%m-%d}<br><b>节点</b>: %{fullData.name}<br><b>压力值</b>: %{y:.2f} kPa<extra></extra>"
             ))
 
-        # 2. 绘制竖线，并使用内置 annotation 实现跟随缩放的横向日期标注
+        # 2. 绘制竖线，并交错显示日期标签
         if selected_event != "取消所有竖线":
-            for label, date_str in event_list:
+            for idx, (label, date_str) in enumerate(event_list):
                 date_obj = pd.to_datetime(date_str)
+                # 奇数索引在左，偶数索引在右，防止重叠
+                pos = "top left" if idx % 2 == 0 else "top right"
+                shift = -10 if idx % 2 == 0 else 10
+                
                 fig.add_vline(
                     x=date_obj, line_dash="dash", line_color="gray", opacity=0.4,
-                    annotation_text=date_str,    # 文本内容
-                    annotation_position="top left", # 标注位置
-                    annotation_textangle=0,       # 0度即水平横向显示
-                    annotation_font=dict(size=10, color="gray")
+                    annotation_text=date_str,
+                    annotation_position=pos,
+                    annotation_textangle=0,
+                    annotation_font=dict(size=12, color="black", weight="bold"),
+                    annotation_yshift=shift
                 )
 
         # 3. 布局与定位逻辑
@@ -128,7 +133,7 @@ if selected_nodes:
         fig.update_layout(
             xaxis=xaxis_config, yaxis=dict(title="压力值 (kPa)"), 
             plot_bgcolor='white', height=500, hovermode="closest",
-            margin=dict(t=50, b=50) # 增加上下边距防止文字溢出
+            margin=dict(t=80, b=50) # 增大顶部留白，放置上方的日期标注
         )
         st.plotly_chart(fig, use_container_width=True)
     except Exception as e:
