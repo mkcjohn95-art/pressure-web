@@ -6,7 +6,6 @@ import plotly.graph_objects as go
 from datetime import timedelta
 
 # --- 1. 配置区域 ---
-# 替换为你的真实表格ID
 SPREADSHEET_ID = "1W7VWIIWspuqTSCOGvKqJVP0lQjUS33zDi-KDJFe0Vkk"
 
 def get_gspread_client():
@@ -118,9 +117,17 @@ if selected_nodes:
                     showlegend=False
                 ))
 
-        # 3. 布局与定位
+        # 3. 布局与定位逻辑
         xaxis_config = dict(tickformat="%m-%d", type="date", gridcolor='lightgray')
-        if selected_event not in ["显示全部", "取消所有竖线"]:
+        
+        if selected_event == "显示全部":
+            # 自动聚焦到最近 30 天，保证放大效果
+            last_date = plot_df.index.max()
+            start_date = last_date - timedelta(days=30)
+            xaxis_config["range"] = [start_date, last_date]
+            
+        elif selected_event != "取消所有竖线":
+            # 精准定位到施工阶段
             idx = next(i for i, v in enumerate(event_list) if v[0] == selected_event)
             start_date = pd.to_datetime(event_list[idx][1])
             end_date = pd.to_datetime(event_list[idx+1][1]) if idx < len(event_list) - 1 else start_date + timedelta(days=7)
@@ -132,6 +139,6 @@ if selected_nodes:
         )
         st.plotly_chart(fig, use_container_width=True)
     except Exception as e:
-        st.info("图表渲染中...")
+        st.info("数据渲染中...")
 else:
     st.info("请在上方选择框中勾选节点以显示曲线。")
